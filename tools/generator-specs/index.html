@@ -1,0 +1,1338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generator Specs Browser</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d1d1f; --muted: #6b6b73; --line: #e3e3e8; --head: #f5f5f7;
+    --accent: #2f5bd3; --derived: #8a8a93; --hover: #f0f4ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16171a; --fg: #e8e8ec; --muted: #9a9aa3; --line: #2c2d33; --head: #1f2025;
+            --accent: #8fb0ff; --derived: #8c8c96; --hover: #22283a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 16px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 18px; margin: 0 0 10px; font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input[type=search], select, button {
+    font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 8px; }
+  input[type=search] { min-width: 220px; flex: 1 1 220px; max-width: 360px; }
+  button { cursor: pointer; }
+  label.check { color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+  #count { color: var(--muted); margin-left: auto; }
+  #colpanel { display: none; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--head);
+              columns: 220px; column-gap: 24px; }
+  #colpanel.open { display: block; }
+  #colpanel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+                 margin: 8px 0 4px; break-after: avoid; }
+  #colpanel label { display: block; break-inside: avoid; }
+  /* the table scrolls inside its own box so the header row (and the model column) stay in view */
+  .wrap { overflow: auto; max-height: calc(100vh - 150px); min-height: 240px; border-bottom: 1px solid var(--line); }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: var(--head); position: sticky; top: 0; z-index: 2; font-weight: 600; white-space: nowrap;
+       box-shadow: inset 0 -1px 0 var(--line); }
+  #t th:first-child, #t td:first-child { position: sticky; left: 0; z-index: 1; background: var(--bg);
+                                        box-shadow: inset -1px 0 0 var(--line); }
+  #t th:first-child { z-index: 3; background: var(--head); }
+  #t td.mdl { min-width: 150px; max-width: 220px; }
+  #t td.mdl .mfr { color: var(--muted); font-size: 12px; }
+  #t tr.open td:first-child { background: var(--hover); }
+  #t tr.sub td:first-child, #t tr.detail td:first-child { background: var(--head); }
+  #t tr.detail td:first-child { position: static; }
+  th .lab { cursor: pointer; }
+  th select { display: block; margin-top: 4px; padding: 2px 4px; font-size: 12px; font-weight: 400; }
+  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.name { min-width: 260px; color: var(--muted); font-size: 13px; }
+  tr:hover td { background: var(--hover); }
+  .derived { color: var(--derived); font-style: italic; }
+  .btag { color: var(--muted); font-size: 10.5px; font-style: normal; cursor: help; }
+  sup a { color: var(--accent); text-decoration: none; font-size: 10px; margin-left: 1px; }
+  .tag { display: inline-block; font-size: 11px; padding: 0 5px; border: 1px solid var(--line);
+         border-radius: 4px; margin: 0 2px 2px 0; color: var(--muted); }
+  #refs { padding: 16px; font-size: 13px; }
+  #refs h2 { font-size: 15px; margin: 0 0 8px; }
+  #refs ol { padding-left: 28px; margin: 0; }
+  #refs li { margin-bottom: 3px; }
+  #refs a { color: var(--accent); }
+  .legend { color: var(--muted); font-size: 12px; padding: 8px 16px; }
+  @media (max-width: 600px) { header, #refs, .legend { padding-left: 16px; padding-right: 16px; } }
+  .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .tabs button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .hidden { display: none !important; }
+  #inv { padding: 12px 16px; }
+  #inv table td, #inv table th { padding: 5px 6px; }
+  #inv select.model { max-width: 220px; } #inv select.variant { max-width: 300px; }
+  #inv input[type=number] { width: 80px; font: inherit; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+  #inv tfoot td { font-weight: 600; border-top: 2px solid var(--line); position: sticky; bottom: 0; background: var(--head); z-index: 2; }
+  .fallback { color: var(--derived); }
+  .missing { color: var(--derived); }
+  .inv-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+  tr.main { cursor: pointer; }
+  tr.sub td { background: var(--head); }
+  tr.sub td.name { padding-left: 20px; }
+  button.grp { font-size: 11px; margin-left: 6px; padding: 0 6px; }
+  tr.main.open td { background: var(--hover); }
+  tr.detail td { background: var(--head); padding: 12px 16px; }
+  .card { max-width: 1100px; white-space: normal; }
+  .card-h { font-size: 16px; font-weight: 600; }
+  .card-sub { color: var(--muted); margin-bottom: 6px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; font-size: 13px; }
+  .sects { columns: 340px; column-gap: 28px; }
+  .sect { break-inside: avoid; margin-bottom: 10px; }
+  .sect h4 { margin: 6px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .kvrow { display: grid; grid-template-columns: 150px 1fr; gap: 8px; font-size: 13px; padding: 2px 0;
+           border-bottom: 1px dotted var(--line); }
+  .plab { color: var(--muted); }
+  .note { color: var(--muted); font-size: 12.5px; }
+  #inv-colpanel { display: none; padding: 8px 0; } #inv-colpanel.open { display: block; }
+  #inv-colpanel label { margin-right: 12px; display: inline-block; }
+  tr.ovr td { background: var(--head); font-size: 13px; }
+  .ovgrid { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  .ovgrid .ov { display: flex; gap: 4px; align-items: center; }
+  .ovgrid input[type=number] { width: 72px; }
+  .ovmark { color: var(--accent); font-size: 11px; }
+  .muted { color: var(--muted); }
+  .calc { font-size: 13px; line-height: 1.5; }
+  .calc ul { margin: 4px 0 0 18px; padding: 0; }
+  .disclaimer { margin: 8px 16px 0; padding: 8px 12px; border: 1px solid var(--line); border-left: 3px solid #c98a00;
+                background: var(--head); color: var(--fg); font-size: 13px; }
+  .pager { display: flex; gap: 8px; align-items: center; margin: 8px 16px; color: var(--muted); font-size: 13px; }
+  .pager button:disabled { opacity: 0.4; }
+  #inv tfoot tr.refrow td { font-weight: 400; background: var(--bg); border-top: 1px solid var(--line); position: static; }
+  #inv-example-note { margin: 0 0 8px; }
+  /* plots: categorical slots 1-3 (validated all-pairs against #ffffff / #16171a), chart chrome */
+  #plots { padding: 12px 16px;
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ink2: #52514e; --ink3: #898781; --box: rgba(11,11,11,0.04); }
+  @media (prefers-color-scheme: dark) {
+    #plots { --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+      --grid: #2c2c2a; --axis: #383835; --ink2: #c3c2b7; --ink3: #898781; --box: rgba(255,255,255,0.05); }
+  }
+  .plot-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 8px; }
+  .plot-bar label { color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+  .plot-bar select { max-width: 220px; }
+  .plot-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; font-size: 12.5px; color: var(--ink2); margin: 4px 0 6px; }
+  .plot-legend .key { display: inline-flex; gap: 5px; align-items: center; }
+  .plot-legend svg { flex: none; }
+  .plot-wrap { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .plot-wrap svg { display: block; touch-action: none; }
+  .plot-wrap text { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: var(--ink2); }
+  .plot-wrap text.tick { fill: var(--ink3); font-variant-numeric: tabular-nums; }
+  .plot-wrap text.title { fill: var(--ink2); font-size: 12.5px; }
+  .tip { position: absolute; pointer-events: none; background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+         border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.12); padding: 7px 10px; font-size: 12.5px;
+         max-width: 320px; z-index: 5; display: none; }
+  .tip .tv { font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .tip .ts { color: var(--muted); }
+  #plot-status { color: var(--muted); font-size: 12.5px; margin-left: auto; }
+  #plot-rank { margin-top: 12px; }
+  #plot-rank h3, #plot-sel h3 { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
+  #plot-rank table td, #plot-rank table th { padding: 4px 8px; font-size: 13px; }
+  #plot-rank table th { position: static; }
+  #plot-rank tbody tr { cursor: pointer; }
+  #plot-rank tr.sel td { background: var(--hover); }
+  #plot-sel { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--head); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+  .dot.hollow { background: transparent !important; border: 2px solid; width: 9px; height: 9px; }
+  .sitebar { font-size: 13px; margin: 0 0 8px; }
+  .sitebar a { color: var(--accent); text-decoration: none; }
+  .sitebar a:hover { text-decoration: underline; }
+  .beta { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+          color: var(--accent); border: 1px solid currentColor; border-radius: 3px;
+          padding: 1px 5px; margin-left: 6px; vertical-align: 3px; }
+  .betanote { margin: -6px 0 10px; color: var(--muted); font-size: 13px; max-width: 80ch; }
+</style>
+</head>
+<body>
+<header>
+  <nav class="sitebar"><a href="../../">&larr; Better Data Center Project</a></nav>
+  <h1>Generator specifications<span class="beta">Beta</span></h1>
+  <p class="betanote">This is a draft tool to calculate potential emissions from gas- and diesel-fired generation equipment. Emissions factors and calculations are still being validated.</p>
+  <div class="tabs"><button id="tab-browse" class="active">Browse</button><button id="tab-inv">Emissions inventory</button><button id="tab-plots">Plots</button></div>
+  <div class="controls" id="browse-controls">
+    <input type="search" id="q" placeholder="Search model, manufacturer, variant…">
+    <select id="tech"><option value="">All technologies</option></select>
+    <label class="check"><input type="checkbox" id="generic"> Show AP-42 / regulatory</label>
+    <label class="check" title="Show the most complete, best-sourced variant of each model; expand to see the rest"><input type="checkbox" id="grouped" checked> One row per model</label>
+    <button id="cols">Columns</button>
+    <label class="check">Show <select id="pagesize"><option>10</option><option>25</option><option>50</option>
+      <option>100</option><option value="0">all</option></select></label>
+    <span id="count"></span>
+  </div>
+</header>
+<div class="disclaimer" role="note"><b>For reference only.</b> These values and estimates are compiled from manufacturer
+  documents, permits, AP-42 and the literature, and many are calculated. They are not guarantees or permit terms.
+  Check every value against the cited source, and verify carefully before using it in any regulatory analysis.</div>
+<div id="browse">
+<div id="colpanel"></div>
+<div class="legend">Each row is one source's description of one variant. Values are at the rated / 100% load point.
+  <span class="derived">Italic grey</span> values are calculated from the cited inputs; superscripts link to sources below.
+  A small <span class="btag">gross</span> / <span class="btag">net</span> marks the output basis the source states;
+  <span class="btag">*</span> marks a heating-value basis inferred from the numbers and <span class="btag">?</span> one the source
+  doesn't state (shown under both HHV and LHV). Hover a value or a mark for details.</div>
+<div class="wrap"><table id="t"><thead></thead><tbody></tbody></table></div>
+<div class="pager"><button id="pg-prev">‹ Prev</button><span id="pg-info"></span><button id="pg-next">Next ›</button></div>
+</div>
+<div id="inv" class="hidden">
+  <div class="inv-bar">
+    <button id="inv-add">+ Add unit</button>
+    <label>Show <select id="inv-view">
+      <option value="pte" title="Every unit at its lb/hr for all 8,760 hours. No permit hour, fuel or event limits are applied, so this is a screening ceiling, not an evaluated PTE.">Unrestricted, tons/yr (8,760 hr)</option>
+      <option value="exp">Expected, tons/yr (at CF or hours)</option>
+      <option value="lbhr">lb/hr per unit</option>
+      <option value="lbmwh">Emission factor, lb/MWh</option>
+      <option value="gkwh">Emission factor, g/kWh</option>
+    </select></label>
+    <label>Load example <select id="inv-example"><option value="">choose…</option></select></label>
+    <button id="inv-cols">Pollutants</button>
+    <button id="inv-clear">Clear</button>
+  </div>
+  <div id="inv-colpanel"></div>
+  <div id="inv-example-note" class="note hidden"></div>
+  <div class="wrap"><table id="inv-t"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+  <p class="legend">Emission rate per unit uses the variant's lb/MWh × MW/unit when available, else its lb/hr
+    (scaled if you change MW/unit), else lb/MMBtu × heat rate × MW. <span class="fallback">Grey †</span> CO2 falls back to
+    40 CFR 98 Table C-1 (116.98 lb/MMBtu gas, 163.05 diesel) × heat input. PM10 and PM2.5 with no value in the
+    database fall back to the technology's AP-42 factor × heat input, marked <span class="fallback">(AP-42)</span>, as
+    permits for gas turbines and engines usually do; a variant without a heat rate uses the median rated heat rate of
+    the model's other variants (see <b>calc</b>). Diesel PM10 / PM2.5 calculated from total PM (all PM10, 97% PM2.5,
+    EPA NR-009d) are marked <span class="btag">split</span> in the browse table. A dash = no factor yet: use
+    <b>factors</b> on a row to enter your own (lb/MWh, lb/hr, lb/MMBtu or ppmvd@15% O2), load the AP-42 or a
+    measured literature factor for the technology, or compute SO2 from fuel sulfur. <span class="ovmark">Blue</span> marks
+    user, AP-42 or literature values. <b>CO2e</b> is always computed: CO2 + 29.8 × CH4 + 273 × N2O (IPCC AR6 GWP-100,
+    fossil methane), from the same rates as those columns, including overrides; "(no CH4)" means that term is missing.
+    Generic AP-42 and literature variants start from a <span class="fallback">typical unit</span>: the median rated size
+    and HHV heat rate of the database's own models of that technology. Replace them with the actual unit's values.
+    Superscripts link to sources below.</p>
+</div>
+<div id="plots" class="hidden">
+  <div class="plot-bar">
+    <label>Value <select id="pl-param"></select></label>
+    <label><select id="pl-unit"></select></label>
+    <label>Group by <select id="pl-group"></select></label>
+    <label>Color by <select id="pl-color"></select></label>
+    <label>Scale <select id="pl-scale"><option value="lin">linear</option><option value="log">log</option></select></label>
+  </div>
+  <div class="plot-bar">
+    <select id="pl-tech"><option value="">All technologies</option></select>
+    <label>Points <select id="pl-agg"><option value="variant">every variant</option>
+      <option value="model">one per model (median of its variants)</option></select></label>
+    <label class="check"><input type="checkbox" id="pl-stated"> Stated values only</label>
+    <label class="check"><input type="checkbox" id="pl-generic"> Include AP-42 / regulatory</label>
+    <input type="search" id="pl-q" placeholder="Highlight model or variant…">
+    <span id="plot-status"></span>
+  </div>
+  <div class="plot-legend" id="plot-legend"></div>
+  <div class="plot-wrap" id="plot-wrap"><svg id="plot-svg" role="img"></svg><div class="tip" id="plot-tip"></div></div>
+  <p class="legend" style="padding-left:0">Each point is one variant's headline value (rated / 100% load), as in the
+    browse table. Boxes show the median and quartiles; whiskers reach the furthest point within 1.5 × the interquartile
+    range. Hollow points are calculated values. Hover a point for details; click it (or a row below) to select it.
+    Permit limits are not measured emissions, and engine-out and stack values are not comparable: use
+    <b>Color by</b> or <b>Group by</b> to keep them apart.</p>
+  <div id="plot-sel" class="hidden"></div>
+  <div id="plot-rank"></div>
+</div>
+<section id="refs"></section>
+
+<script>
+const DATA_URL = "ui_data.json";
+// prefix for the "stored copy" links to sources/files; null leaves them off (the website copy)
+const STORED_BASE = null;
+const DEFAULT_COLS = {
+  power_electric: "MWe", heat_rate: "Btu/kWh (HHV)", efficiency_electric: "% (LHV)",
+  NOx: "lb/MWh", CO: "lb/MWh", VOC: "lb/MWh", "PM2.5": "lb/MWh",
+};
+// saved column choices from before PM2.5 became the default PM column get it in PM10's place, once
+const COLS_REV = 2;
+function pm25Default(list) {
+  return Array.isArray(list) ? (list.includes("PM2.5") ? list : list.map(p => p === "PM10" ? "PM2.5" : p))
+    : ("PM10" in list && !("PM2.5" in list)
+       ? Object.fromEntries(Object.entries(list).map(([p, u]) => p === "PM10" ? ["PM2.5", u] : [p, u])) : list);
+}
+const UNIT_PREF = ["lb/MWh", "MWe", "Btu/kWh (HHV)", "% (LHV)", "lb/hr", "g/bhp-hr", "ppmvd@15%O2"];
+let D, cols, sort = { key: null, dir: 1 }, expanded = new Set(), page = 0, pageSize = 50, openGroups = new Set();
+
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+function fmt(x) {
+  if (x === null || x === undefined || (typeof x === "number" && isNaN(x)) || String(x).toLowerCase() === "nan") return "–";
+  if (x === 0) return "0";
+  const a = Math.abs(x);
+  if (a >= 1000) return Math.round(x).toLocaleString();
+  return Number(x.toPrecision(3)).toString();
+}
+
+// "MMBtu/hr (HHV)" -> ["MMBtu/hr", " (HHV)"]: heat values keep HHV and LHV as separate options
+const splitKey = k => { const m = /^(.*?)( \((?:HHV|LHV)\))?$/.exec(k); return [m[1], m[2] || ""]; };
+const familyOf = (p, unit) => (D.families[p] || []).find(f => unit in f);
+
+// A row's value for a parameter in a unit option: the build's own entry, else a fixed-factor
+// conversion from another unit of the same family (lb/kWh from lb/MWh, kg/hr from lb/hr...).
+// Entry: [value, "s"|"d", cites, n stated, origin, tag, max]; tag = gross / net / inferred / basis not stated /
+// certification cycle; max = a stated maximum at the same point, where the value shown is the nominal one.
+function getv(r, p, key) {
+  const vs = r.values[p];
+  if (!vs) return undefined;
+  if (vs[key]) return vs[key];
+  const [unit, sfx] = splitKey(key), fam = familyOf(p, unit);
+  if (!fam) return undefined;
+  let src = null;
+  for (const u of Object.keys(fam)) {
+    const e = vs[u + sfx];
+    if (e && typeof e[0] === "number" && (!src || (e[1] === "s" && src[1][1] !== "s"))) src = [u, e];
+  }
+  if (!src) return undefined;
+  const [su, e] = src, x = e[0] * fam[su] / fam[unit];
+  const how = `${su} → ${unit}`;
+  return [x, "d", e[2], e[3], e[4] ? `${e[4]}; ${how}` : `from ${fmt(e[0])} ${su}${sfx}: ${how}`, e[5],
+          e[6] != null ? e[6] * fam[su] / fam[unit] : undefined];
+}
+
+// how a value's basis tag shows next to the number
+const TAG_TEXT = { gross: "gross", net: "net", inferred: "*", "basis not stated": "?", "certification cycle": "cert",
+                   "size split assumed": "split" };
+const TAG_TITLE = { gross: "gross output basis", net: "net output basis",
+  "certification cycle": "EPA certification level: a test-cycle weighted average for the engine family. " +
+    "Per-hour or per-MWh figures apply it at one rating, so they are screening rates, not full-load measurements or maximums",
+  "size split assumed": "calculated from the source's total diesel PM: EPA's NONROAD model takes all diesel PM as PM10 " +
+    "and 97% of it as PM2.5 (NR-009d)",
+  inferred: "heating-value basis inferred from the numbers, not stated in the source",
+  "basis not stated": "the source does not state the heating-value basis; shown under both HHV and LHV" };
+const tagHtml = tag => tag ? ` <span class="btag" title="${esc(TAG_TITLE[tag] ?? tag)}">${esc(TAG_TEXT[tag] ?? tag)}</span>` : "";
+
+function unitsFor(param) {
+  const s = new Set();
+  for (const r of D.rows) if (r.values[param]) Object.keys(r.values[param]).forEach(u => s.add(u));
+  // offer only units every row can be shown in: those of a convertible family when the
+  // parameter has families (input-only units like mg/Nm3 at 5% O2 stay on the cards)
+  const fams = D.families[param] || [];
+  return [...s].filter(k => !fams.length || familyOf(param, splitKey(k)[0])).sort((a, b) => {
+    const ia = UNIT_PREF.indexOf(a), ib = UNIT_PREF.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+}
+
+function buildColPanel() {
+  const byCat = {};
+  for (const [p, m] of Object.entries(D.params)) {
+    if (!D.rows.some(r => r.values[p])) continue;
+    (byCat[m.category] ??= []).push([p, m.label]);
+  }
+  const panel = document.getElementById("colpanel");
+  panel.innerHTML = "";
+  for (const [cat, ps] of Object.entries(byCat)) {
+    const h = document.createElement("h3"); h.textContent = cat; panel.append(h);
+    for (const [p, lab] of ps) {
+      const l = document.createElement("label");
+      const c = document.createElement("input"); c.type = "checkbox"; c.checked = p in cols;
+      c.onchange = () => {
+        if (c.checked) cols[p] = unitsFor(p)[0]; else delete cols[p];
+        store.set("gs_cols", cols); render();
+      };
+      l.append(c, " " + lab); panel.append(l);
+    }
+  }
+}
+
+function render() {
+  const q = document.getElementById("q").value.toLowerCase();
+  const tech = document.getElementById("tech").value;
+  const showGeneric = document.getElementById("generic").checked;
+  let rows = D.rows.filter(r =>
+    (showGeneric || !r.generic) && (!tech || r.tech === tech) &&
+    (!q || `${r.manufacturer} ${r.model} ${r.name} ${r.controls}`.toLowerCase().includes(q)));
+  const val = r => sort.key in cols ? getv(r, sort.key, cols[sort.key])?.[0]
+    : sort.key === "model" ? `${r.manufacturer ?? ""} ${r.model ?? ""}`.toLowerCase() : (r[sort.key] ?? "");
+  const cmp = (a, b) => {
+    const x = val(a), y = val(b);
+    if (x === undefined) return 1; if (y === undefined) return -1;
+    return (x > y ? 1 : x < y ? -1 : 0) * sort.dir;
+  };
+  // one group per model; its lead row is the variant filling the most visible columns,
+  // then with the most stated (not calculated) parameters, then the best-ranked source kind;
+  // a permit row matched to the model only approximately never leads
+  const filled = r => Object.entries(cols).filter(([p, u]) => getv(r, p, u)).length;
+  const rank = (a, b) => a.approx - b.approx || filled(b) - filled(a) || b.n_stated - a.n_stated || a.trust - b.trust;
+  const grouped = document.getElementById("grouped").checked;
+  let groups;
+  if (grouped) {
+    const by = new Map();
+    for (const r of rows) (by.get(r.equipment) ?? by.set(r.equipment, []).get(r.equipment)).push(r);
+    groups = [...by.values()].map(g => g.sort(rank));
+  } else groups = rows.map(r => [r]);
+  if (sort.key) groups.sort((a, b) => cmp(a[0], b[0]));
+  document.getElementById("count").textContent = grouped ? `${groups.length} models, ${rows.length} variants`
+                                                         : `${rows.length} variants`;
+  const nPages = pageSize ? Math.max(1, Math.ceil(groups.length / pageSize)) : 1;
+  page = Math.min(page, nPages - 1);
+  const first = pageSize ? page * pageSize : 0;
+  const shownGroups = pageSize ? groups.slice(first, first + pageSize) : groups;
+  document.getElementById("pg-info").textContent = groups.length
+    ? `${first + 1}–${first + shownGroups.length} of ${groups.length}` + (nPages > 1 ? ` (page ${page + 1} of ${nPages})` : "") : "";
+  document.getElementById("pg-prev").disabled = page === 0;
+  document.getElementById("pg-next").disabled = page >= nPages - 1;
+
+  const thead = document.querySelector("#t thead");
+  const fixed = [["model", "Model"], ["tech", "Type"], ["name", "Variant"]];
+  thead.innerHTML = "";
+  const tr = document.createElement("tr");
+  for (const [k, lab] of fixed) {
+    const th = document.createElement("th");
+    th.innerHTML = `<span class="lab">${lab}</span>`;
+    th.querySelector(".lab").onclick = () => setSort(k);
+    tr.append(th);
+  }
+  for (const [p, unit] of Object.entries(cols)) {
+    const th = document.createElement("th");
+    const lab = document.createElement("span"); lab.className = "lab";
+    lab.textContent = D.params[p]?.label ?? p; lab.onclick = () => setSort(p);
+    const sel = document.createElement("select");
+    for (const u of unitsFor(p)) sel.add(new Option(u, u, false, u === unit));
+    sel.onchange = () => { cols[p] = sel.value; store.set("gs_cols", cols); render(); };
+    th.append(lab, sel); tr.append(th);
+  }
+  thead.append(tr);
+
+  const refNum = new Map();
+  const tbody = document.querySelector("#t tbody");
+  const html = [];
+  const shown = [];
+  for (const g of shownGroups) {
+    const more = g.length - 1, gopen = openGroups.has(g[0].equipment);
+    shown.push([g[0], grouped ? more : 0, gopen, false]);
+    if (grouped && gopen) for (const r of g.slice(1)) shown.push([r, 0, false, true]);
+  }
+  for (const [r, more, gopen, sub] of shown) {
+    const tags = [r.subtype, r.tier, ...(r.controls ? r.controls.split(",") : [])].filter(Boolean)
+      .map(t => `<span class="tag">${esc(t)}</span>`).join("") +
+      (r.approx ? `<span class="tag" title="The permit names a related model (e.g. 3516A for 3516B); matched to this entry approximately">approximate match</span>` : "");
+    const open = expanded.has(r.id);
+    const toggle = more ? ` <button class="grp" data-eq="${esc(r.equipment)}" title="${gopen ? "Hide" : "Show"} the other variants">` +
+                          `${gopen ? "− hide" : "+"} ${more} more variant${more === 1 ? "" : "s"}</button>` : "";
+    let h = `<tr class="main${open ? " open" : ""}${sub ? " sub" : ""}" data-id="${r.id}">` +
+            `<td class="mdl">${open ? "▾" : "▸"} ${sub ? "" : `<span class="mfr">${esc(r.manufacturer)}</span><br>${esc(r.model)}`}</td>` +
+            `<td>${sub ? "" : esc(r.tech)}</td>` +
+            `<td class="name">${tags}<br>${esc(r.name ?? r.id)}${toggle}</td>`;
+    for (const [p, unit] of Object.entries(cols)) {
+      const v = getv(r, p, unit);
+      if (!v) { h += `<td class="num"></td>`; continue; }
+      const [x, status, cs, , origin, tag] = v;
+      const sups = cs.map(ci => {
+        if (!refNum.has(ci)) refNum.set(ci, refNum.size + 1);
+        return `<a href="#ref${refNum.get(ci)}">${refNum.get(ci)}</a>`;
+      }).join(",");
+      h += `<td class="num"><span class="${status === "d" ? "derived" : ""}"${origin ? ` title="${esc(origin)}"` : ""}>${fmt(x)}</span>` +
+           tagHtml(tag) + (sups ? `<sup>${sups}</sup>` : "") + `</td>`;
+    }
+    html.push(h + "</tr>");
+    if (open) html.push(`<tr class="detail"><td colspan="${3 + Object.keys(cols).length}">${card(r, refNum)}</td></tr>`);
+  }
+  tbody.innerHTML = html.join("");
+  tbody.onclick = e => {
+    if (e.target.closest("a")) return;
+    const gb = e.target.closest("button.grp");
+    if (gb) { const k = gb.dataset.eq; openGroups.has(k) ? openGroups.delete(k) : openGroups.add(k); render(); return; }
+    const tr = e.target.closest("tr.main");
+    if (!tr) return;
+    const id = tr.dataset.id;
+    expanded.has(id) ? expanded.delete(id) : expanded.add(id);
+    render();
+  };
+  writeRefs(refNum);
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+function card(r, refNum) {
+  const meta = [["Type", [r.tech, r.subtype].filter(Boolean).join(" / ")], ["Ignition", r.ignition], ["Fuel", r.fuel],
+    ["Tier", r.tier], ["Controls", r.controls], ["Emissions point", r.emissions_point],
+    ["Packaging", (r.packaging || []).join(", ")],
+    ["Conditions", r.conditions ? Object.entries(r.conditions).map(([k, x]) => `${k} ${x}`).join("; ") : ""]]
+    .filter(([, x]) => x && String(x).toLowerCase() !== "nan").map(([k, x]) => `<span class="kv"><b>${k}</b> ${esc(x)}</span>`).join("");
+  const byCat = {};
+  for (const p of Object.keys(D.params)) {
+    const units = r.values[p];
+    if (!units) continue;
+    const spec = [], der = [];
+    for (const [u, [x, status, cs, , , tag]] of Object.entries(units)) {
+      const s = `${fmt(x)} ${esc(u)}${tagHtml(tag)}${cs.length ? `<sup>${supRefs(cs, refNum)}</sup>` : ""}`;
+      (status === "s" ? spec : der).push(s);
+    }
+    (byCat[D.params[p].category] ??= []).push(
+      `<div class="kvrow"><span class="plab">${esc(D.params[p].label)}</span>` +
+      `<span>${spec.length ? `<b>${spec.join("; ")}</b>` : ""}` +
+      `${der.length ? `<span class="derived">${spec.length ? " · " : ""}${der.join("; ")}</span>` : ""}</span></div>`);
+  }
+  const sections = Object.entries(byCat).map(([cat, lines]) =>
+    `<div class="sect"><h4>${cat}</h4>${lines.join("")}</div>`).join("");
+  return `<div class="card"><div class="card-h">${esc(r.manufacturer)} ${esc(r.model)}</div>` +
+    `<div class="card-sub">${esc(r.name)}</div><div class="meta">${meta}</div>` +
+    (r.description ? `<p>${esc(r.description)}</p>` : "") + (r.notes ? `<p class="note">${esc(r.notes)}</p>` : "") +
+    `<div class="sects">${sections}</div><p class="note">Bold: values stated by the source. Grey: calculated.</p></div>`;
+}
+
+function supRefs(cs, refNum) {
+  return (cs || []).map(ci => {
+    if (!refNum.has(ci)) refNum.set(ci, refNum.size + 1);
+    return `<a href="#ref${refNum.get(ci)}">${refNum.get(ci)}</a>`;
+  }).join(",");
+}
+
+function writeRefs(refNum) {
+  const refs = document.getElementById("refs");
+  const items = [...refNum.entries()].sort((a, b) => a[1] - b[1]).map(([ci, n]) => {
+    const c = D.cites[ci], s = D.sources[c.s];
+    const page = c.p ? `, p. ${c.p}` : "";
+    // c.u is the agency's own link when known, else the third-party copy (s.mirror)
+    const third = c.u && s.mirror_url && !s.url;
+    const link = c.u ? ` <a href="${c.u}" target="_blank" rel="noopener">${third ? "third-party copy" : "original"}</a>` +
+      (third ? ` <span class="muted">(${esc(s.mirror)}; agency link not found${s.agency_record ? ", " + esc(s.agency_record) : ""})</span>` : "") : "";
+    const mirror = !third && s.mirror_url ? ` <a href="${s.mirror_url}" target="_blank" rel="noopener">third-party copy</a>` : "";
+    const docket = !s.url && s.agency_docket_url
+      ? ` <a href="${s.agency_docket_url}" target="_blank" rel="noopener" title="${esc(s.agency_record || "")}">agency docket</a>` : "";
+    const local = s.file && STORED_BASE != null ? ` <a href="${STORED_BASE}${s.file}" target="_blank">stored copy</a>` : "";
+    return `<li id="ref${n}">${s.title}${page}.${link}${mirror}${docket}${local}</li>`;
+  });
+  refs.innerHTML = items.length ? `<h2>Sources</h2><ol>${items.join("")}</ol>` : "";
+}
+
+function setSort(k) { sort = { key: k, dir: sort.key === k ? -sort.dir : 1 }; page = 0; render(); }
+
+// ------------------------------------------------------------ inventory
+
+// Pollutant columns: label -> parameters tried in order (later ones are labelled stand-ins).
+// Stand-ins may overstate but should not understate: NMNEHC / NMHC for VOC (THC is left out,
+// its methane overstates VOC several-fold); total PM, then PM2.5, then filterable PM for PM10.
+const POLL_DEFS = {
+  NOx: ["NOx"], CO: ["CO"], VOC: ["VOC", "NMNEHC", "NMHC"], "PM10": ["PM10", "PM_total", "PM2.5", "PM"],
+  "PM2.5": ["PM2.5", "PM10", "PM_total", "PM"], SO2: ["SO2"], NH3: ["NH3"], HCHO: ["HCHO"], CO2: ["CO2"],
+  CH4: ["CH4"], N2O: ["N2O"], H2SO4: ["H2SO4"], CO2e: [],  // CO2e: computed (co2eRate)
+};
+const AP42_FALLBACK = new Set(["PM10", "PM2.5"]);  // columns that fall back to AP-42 (unitRate)
+const DEFAULT_POLL = ["NOx", "CO", "VOC", "PM2.5", "SO2", "NH3", "HCHO", "CO2"];
+const MW = { NOx: 46.0055, CO: 28.0101, SO2: 64.064, VOC: 44.097, NH3: 17.031, HCHO: 30.026,
+             CH4: 16.043, N2O: 44.013, CO2: 44.0095, H2SO4: 98.079 };
+const FD = { natural_gas: 8710, distillate: 9190, propane: 8710 };       // Method 19 Table 19-2, dscf/MMBtu
+const CO2_DEFAULT = { natural_gas: 116.98, distillate: 163.05 };          // lb/MMBtu HHV, 40 CFR 98 Table C-1
+const GAS_HHV = 1020;                                                     // Btu/scf, AP-42 default
+const OV_UNITS = ["lb/MWh", "lb/hr", "lb/MMBtu", "ppmvd@15%O2"];
+let inv = [], ROW_BY_ID = {}, EQUIP = [], invCols = DEFAULT_POLL, ovOpen = new Set(), calcOpen = new Set(), invExample = null;
+const LB_MWH_TO_G_KWH = 0.45359237;
+
+function v0(r, p, u) { return getv(r, p, u); }
+const knownBasis = e => e && e[5] !== "basis not stated" ? e : undefined;  // the inventory needs a real HHV value
+function cfgMW(r) { return v0(r, "power_electric", "MWe")?.[0]; }
+function cfgHR(r) { return knownBasis(v0(r, "heat_rate", "Btu/kWh (HHV)"))?.[0]; }
+function cfgHeatInput(r) { return knownBasis(v0(r, "heat_input", "MMBtu/hr (HHV)"))?.[0]; }
+function itemMW(item, r) { return item.mw !== "" && item.mw != null ? +item.mw : cfgMW(r); }
+function itemHR(item, r) { return item.hr !== "" && item.hr != null ? +item.hr : cfgHR(r); }
+function itemHeatInput(item, r) {
+  const mw = itemMW(item, r), hr = itemHR(item, r);
+  if (mw && hr) return mw * hr / 1000;
+  const hi = cfgHeatInput(r);
+  return hi && mw && cfgMW(r) ? hi * mw / cfgMW(r) : hi;
+}
+
+// AP-42 generic entry for a variant's technology, and the config to prefer for NOx/CO
+function ap42For(r, pol) {
+  const ctl = r.controls || "";
+  let eid, prefer;
+  if (r.tech === "SCGT" || r.tech === "CCGT") {
+    eid = "ap42_gas_turbine";
+    prefer = ctl.includes("DLN") ? "lean_premix" : ctl.includes("WI") ? "water_steam_injection" : "uncontrolled";
+  } else if (r.tech === "RICE") eid = r.subtype === "4SRB" ? "ap42_gas_rice_4srb" : "ap42_gas_rice_4slb";
+  else if (r.tech === "diesel") {
+    // AP-42 3.4 covers engines over 600 hp, 3.3 the rest (fire pumps, small sets); size from brake hp,
+    // else electric output / 0.7457 (ignoring generator losses, which slightly understates hp)
+    const bhp = v0(r, "power_mechanical", "bhp")?.[0] ?? (cfgMW(r) ? cfgMW(r) * 1000 / 0.7457 : null);
+    eid = bhp != null && bhp <= 600 ? "ap42_diesel_small" : "ap42_diesel_large";
+  }
+  else if (r.tech === "boiler") {
+    // AP-42 1.4 size class by heat input (>100 MMBtu/hr = large wall-fired), then controls
+    const hi = cfgHeatInput(r), lnb = /LNB/.test(ctl), fgr = ctl.includes("FGR");
+    eid = "ap42_gas_boiler";
+    prefer = hi > 100 ? (lnb ? "large_wall_lnb" : fgr ? "large_wall_fgr" : "large_wall_post_nsps")
+                      : (lnb && fgr ? "small_lnb_fgr" : lnb ? "small_lnb" : "small_uncontrolled");
+  }
+  if (!eid) return null;
+  const cands = D.rows.filter(x => x.equipment === eid);
+  cands.sort((a, b) => (b.id.endsWith(prefer) ? 1 : 0) - (a.id.endsWith(prefer) ? 1 : 0));
+  for (const c of cands) for (const p of POLL_DEFS[pol] || [pol]) {
+    const f = v0(c, p, "lb/MMBtu");
+    if (f) return { lbmmbtu: f[0], cites: f[2], cfg: c.id, param: p };
+  }
+  return null;
+}
+
+// median HHV heat rate of a model's other variants (not stand-ins), for the AP-42 fallback
+function modelHR(r) {
+  const hrs = D.rows.filter(x => x.equipment === r.equipment && x.id !== r.id && !x.approx)
+    .map(cfgHR).filter(x => x > 0).sort((a, b) => a - b);
+  if (!hrs.length) return null;
+  const m = hrs.length >> 1;
+  return { hr: hrs.length % 2 ? hrs[m] : (hrs[m - 1] + hrs[m]) / 2, n: hrs.length };
+}
+
+// measured / inventory factors from data/generic/lit_*.yaml for this tech
+function litFor(r, pol) {
+  const out = [];
+  for (const c of D.rows) {
+    if (!c.generic || !c.equipment.startsWith("lit_") || c.tech !== r.tech) continue;
+    if (c.subtype && r.subtype && c.subtype !== r.subtype) continue;
+    for (const p of POLL_DEFS[pol] || [pol]) {
+      const f = v0(c, p, "lb/MMBtu");
+      if (f) { out.push({ lbmmbtu: f[0], cites: f[2], cfg: c.id, label: c.name }); break; }
+    }
+  }
+  return out;
+}
+
+// heat input with how it was obtained, for the calculation details
+function hiTxt(item, r) {
+  const mw = itemMW(item, r), hr = itemHR(item, r);
+  if (mw && hr) return `${fmt(mw * hr / 1000)} MMBtu/hr (${fmt(mw)} MW × ${fmt(hr)} Btu/kWh ÷ 1,000)`;
+  return `${fmt(itemHeatInput(item, r))} MMBtu/hr (variant's heat input${mw && cfgMW(r) ? ", scaled to the unit size" : ""})`;
+}
+
+// calculation details for one inventory row: per-unit rate, then tons/yr
+function calcDetail(item, r) {
+  const hrs = item.mode === "cf" ? 8760 * item.op / 100 : item.op;
+  const opTxt = item.mode === "cf" ? `8,760 hr/yr × ${fmt(item.op)}% capacity factor = ${fmt(hrs)} hr/yr`
+                                   : `${fmt(item.op)} hr/yr limit`;
+  const lines = invCols.map(pol => {
+    const res = unitRate(item, r, pol), resHi = unitRate(item, r, pol, true);
+    if (!res) return `<li><b>${pol}</b>: no factor for this variant (use <b>factors</b> to enter one)</li>`;
+    const [lbhr, , , how] = res, lbhrHi = resHi[0];
+    const pte = lbhrHi * item.n * 8760 / 2000, exp = lbhr * item.n * hrs / 2000;
+    const hiTxt2 = lbhrHi !== lbhr ? `${resHi[3]} = <b>${fmt(lbhrHi)} lb/hr</b>; ` : "";
+    return `<li><b>${pol}</b>: ${how ?? ""} = <b>${fmt(lbhr)} lb/hr</b> per unit<br>
+      Unrestricted: ${hiTxt2}${fmt(lbhrHi)} lb/hr × ${item.n} unit${item.n === 1 ? "" : "s"} × 8,760 hr/yr ÷ 2,000 lb/ton = <b>${fmt(pte)} tpy</b>;
+      expected: ${fmt(lbhr)} lb/hr × ${item.n} × ${opTxt} ÷ 2,000 = <b>${fmt(exp)} tpy</b></li>`;
+  });
+  return `<div class="calc"><b>Calculation details</b> (${esc(r.name ?? r.id)})<ul>${lines.join("")}</ul></div>`;
+}
+
+// lb/hr per unit from a user factor: {mode, value, unit, gr}
+function overrideRate(item, r, pol, ov) {
+  const mw = itemMW(item, r), hi = itemHeatInput(item, r);
+  if (ov.mode === "sulfur") {
+    if (!hi) return null;
+    const lbmmbtu = ov.gr / 100 / 7000 * (64.064 / 32.06) / (GAS_HHV / 1e6);
+    return [lbmmbtu * hi, [], `${ov.gr} gr S/100 scf`,
+      `${fmt(lbmmbtu)} lb/MMBtu (${ov.gr} gr S/100 scf, ${GAS_HHV} Btu/scf, all S to SO2) × ${hiTxt(item, r)}`];
+  }
+  if (ov.mode === "ap42") {
+    const a = ap42For(r, pol);
+    return a && hi ? [a.lbmmbtu * hi, a.cites, "AP-42", `${fmt(a.lbmmbtu)} lb/MMBtu (AP-42, ${a.param}) × ${hiTxt(item, r)}`] : null;
+  }
+  if (ov.mode.startsWith("lit:")) {
+    const a = litFor(r, pol).find(x => x.cfg === ov.mode.slice(4));
+    return a && hi ? [a.lbmmbtu * hi, a.cites, "lit.", `${fmt(a.lbmmbtu)} lb/MMBtu (${esc(a.label)}) × ${hiTxt(item, r)}`] : null;
+  }
+  const x = +ov.value;
+  if (ov.unit === "lb/hr") return [x, [], "user", `${fmt(x)} lb/hr (user)`];
+  if (ov.unit === "lb/MWh") return mw ? [x * mw, [], "user", `${fmt(x)} lb/MWh (user) × ${fmt(mw)} MW`] : null;
+  let lbmmbtu = x, how = `${fmt(x)} lb/MMBtu (user)`;
+  if (ov.unit === "ppmvd@15%O2") {
+    const fd = FD[r.fuel] || FD.natural_gas;
+    if (!MW[pol]) return null;
+    lbmmbtu = x * MW[pol] / 385.3e6 * fd * 20.9 / (20.9 - 15);
+    how = `${fmt(x)} ppmvd @15% O2 (user) → ${fmt(lbmmbtu)} lb/MMBtu (Method 19: × ${MW[pol]} lb/lbmol ÷ 385.3e6 scf/lbmol ` +
+          `× Fd ${fd} dscf/MMBtu × 20.9/5.9)`;
+  }
+  return hi ? [lbmmbtu * hi, [], "user", `${how} × ${hiTxt(item, r)}`] : null;
+}
+
+// lb/hr per unit: [lbhr, cites, note, calculation text] or null
+// hi: for the unrestricted (8,760 hr) view, a stated maximum replaces the nominal value where both exist
+function unitRate(item, r, pol, hi = false) {
+  if (pol === "CO2e") return co2eRate(item, r, hi);
+  const ov = item.ov?.[pol];
+  if (ov && ov.mode && ov.mode !== "db") return overrideRate(item, r, pol, ov);
+  const params = POLL_DEFS[pol] || [pol];
+  const mw = itemMW(item, r), hr = itemHR(item, r);
+  const pick = e => e && hi && e[6] != null ? [e[6], e[1], e[2], e[3], null, e[5], null, true] : e;
+  for (const p of params) {
+    const note = p !== params[0] ? p : "";
+    const lab = note ? ` (${p})` : "",
+          kind = x => x[7] ? `the source's stated maximum${x[1] === "d" ? ", converted" : ""}` :
+                      x[1] === "d" ? `calculated${x[4] ? ` [${esc(x[4])}]` : ""}` : "stated in the source";
+    const v0 = (r, p, u) => pick(getv(r, p, u));
+    const f = v0(r, p, "lb/MWh");
+    if (f && mw) return [f[0] * mw, f[2], note, `${fmt(f[0])} lb/MWh${lab}, ${kind(f)} × ${fmt(mw)} MW`];
+    const h = v0(r, p, "lb/hr");
+    if (h) {
+      const s = mw && cfgMW(r) ? mw / cfgMW(r) : 1;
+      return [h[0] * s, h[2], note, `${fmt(h[0])} lb/hr${lab}, ${kind(h)}` +
+        (s !== 1 ? ` × ${fmt(mw)} MW / ${fmt(cfgMW(r))} MW (scaled to the unit size)` : "")];
+    }
+    const b = v0(r, p, "lb/MMBtu");
+    if (b && mw && hr) return [b[0] * hr / 1000 * mw, b[2], note,
+      `${fmt(b[0])} lb/MMBtu${lab}, ${kind(b)} × ${fmt(hr)} Btu/kWh × ${fmt(mw)} MW ÷ 1,000`];
+  }
+  // PM: the technology's AP-42 factor when the database has nothing for this variant, as permits do
+  if (AP42_FALLBACK.has(pol)) {
+    const a = ap42For(r, pol);
+    let hi = itemHeatInput(item, r), hiHow = hi && hiTxt(item, r);
+    const mhr = !hi && mw ? modelHR(r) : null;  // variant without a heat rate: the model's own, from its other variants
+    if (mhr) { hi = mw * mhr.hr / 1000;
+      hiHow = `${fmt(hi)} MMBtu/hr (${fmt(mw)} MW × ${fmt(mhr.hr)} Btu/kWh HHV, the median rated heat rate of ` +
+              `${mhr.n} other variant${mhr.n === 1 ? "" : "s"} of this model ÷ 1,000)`; }
+    if (a && hi) return [a.lbmmbtu * hi, a.cites, "AP-42",
+      `${fmt(a.lbmmbtu)} lb/MMBtu (AP-42 ${a.param === pol ? "" : `${a.param} for ${pol}, `}fallback: the database has no ` +
+      `${pol} for this variant) × ${hiHow}`];
+  }
+  if (pol === "CO2" && CO2_DEFAULT[r.fuel]) {
+    const hi = itemHeatInput(item, r);
+    if (hi) return [CO2_DEFAULT[r.fuel] * hi, [], "†", `${CO2_DEFAULT[r.fuel]} lb/MMBtu (40 CFR 98 Table C-1) × ${hiTxt(item, r)}`];
+  }
+  return null;
+}
+
+// CO2e = CO2 + GWP x CH4 + GWP x N2O (AR6 GWP-100, fossil CH4), from the
+// same per-unit rates as those columns, overrides included
+function co2eRate(item, r, hi = false) {
+  const g = D.gwp.values, co2 = unitRate(item, r, "CO2", hi);
+  if (!co2) return null;
+  const ch4 = unitRate(item, r, "CH4", hi), n2o = unitRate(item, r, "N2O", hi);
+  const lbhr = co2[0] + (ch4 ? g.CH4 * ch4[0] : 0) + (n2o ? g.N2O * n2o[0] : 0);
+  const cites = [...new Set([...co2[1], ...(ch4?.[1] || []), ...(n2o?.[1] || []), ...D.gwp.cite])];
+  const missing = [!ch4 && "CH4", !n2o && "N2O"].filter(Boolean);
+  const how = `${fmt(co2[0])} lb/hr CO2` + (ch4 ? ` + ${g.CH4} × ${fmt(ch4[0])} lb/hr CH4` : "") +
+              (n2o ? ` + ${g.N2O} × ${fmt(n2o[0])} lb/hr N2O` : "") + " (IPCC AR6 GWP-100)";
+  return [lbhr, cites, missing.length ? `no ${missing.join("/")}` : "", how];
+}
+
+function ovEditor(item, r) {
+  const parts = invCols.filter(pol => pol !== "CO2e").map(pol => {
+    const ov = item.ov?.[pol] || { mode: "db" };
+    const ap = ap42For(r, pol);
+    const opts = [["db", "database"], ["custom", "custom"], ...(ap ? [["ap42", `AP-42 (${fmt(ap.lbmmbtu)} lb/MMBtu)`]] : []),
+                  ...litFor(r, pol).map(a => ["lit:" + a.cfg, `${a.label.slice(0, 48)} (${fmt(a.lbmmbtu)} lb/MMBtu)`]),
+                  ...(pol === "SO2" ? [["sulfur", "fuel sulfur"]] : [])]
+      .map(([k, l]) => `<option value="${k}" ${ov.mode === k ? "selected" : ""}>${l}</option>`).join("");
+    let extra = "";
+    if (ov.mode === "custom") extra = `<input type="number" step="any" data-k="value" value="${ov.value ?? ""}">` +
+      `<select data-k="unit">${OV_UNITS.map(u => `<option ${ov.unit === u ? "selected" : ""}>${u}</option>`).join("")}</select>`;
+    if (ov.mode === "sulfur") extra = `<input type="number" step="any" data-k="gr" value="${ov.gr ?? 0.2}"> gr S/100 scf`;
+    return `<span class="ov" data-pol="${pol}"><b>${pol}</b><select data-k="mode">${opts}</select>${extra}</span>`;
+  });
+  return `<div class="ovgrid">${parts.join("")}</div>`;
+}
+
+function invRender() {
+  const view = document.getElementById("inv-view").value;
+  const thead = document.querySelector("#inv-t thead"), tbody = document.querySelector("#inv-t tbody"),
+        tfoot = document.querySelector("#inv-t tfoot");
+  thead.innerHTML = `<tr><th>Model</th><th>Variant</th><th>Units</th><th>MW / unit</th>
+    <th>Heat rate<br>Btu/kWh HHV</th><th>Operation</th>${invCols.map(p => `<th>${p}</th>`).join("")}<th></th></tr>`;
+  const refNum = new Map(), totals = invCols.map(() => 0);
+  const lbhrMW = invCols.map(() => [0, 0]), nTot = invCols.map(() => 0);  // site lb/hr and MW of the rows with a value, for the factor views
+  let totMW = 0;
+  tbody.innerHTML = "";
+  inv.forEach((item, i) => {
+    const r = ROW_BY_ID[item.config];
+    const tr = document.createElement("tr");
+    const variants = D.rows.filter(x => x.equipment === item.equipment);
+    tr.innerHTML = `
+      <td><select class="model">${EQUIP.map(e => `<option value="${e.id}" ${e.id === item.equipment ? "selected" : ""}>${esc(e.label)}</option>`).join("")}</select></td>
+      <td><select class="variant">${variants.map(x => `<option value="${x.id}" ${x.id === item.config ? "selected" : ""}>${esc(x.name ?? x.id)}</option>`).join("")}</select></td>
+      <td><input type="number" min="0" step="1" class="n" value="${item.n}"></td>
+      <td><input type="number" min="0" step="any" class="mw" value="${item.mw}" placeholder="${cfgMW(r) ? fmt(cfgMW(r)) : ""}"
+          ${r.typical ? 'title="Typical-unit default: median rated size of this technology\'s models in the database. Enter the actual unit\'s value."' : ""}>${r.typical && item.mw === "" ? '<br><span class="fallback">typical unit</span>' : ""}</td>
+      <td><input type="number" min="0" step="any" class="hr" value="${item.hr}" placeholder="${cfgHR(r) ? fmt(cfgHR(r)) : ""}"
+          ${r.typical ? 'title="Typical-unit default: median rated HHV heat rate of this technology\'s models in the database. Enter the actual unit\'s value."' : ""}>${r.typical && item.hr === "" ? '<br><span class="fallback">typical unit</span>' : ""}</td>
+      <td><select class="mode"><option value="cf" ${item.mode === "cf" ? "selected" : ""}>CF %</option>
+          <option value="hrs" ${item.mode === "hrs" ? "selected" : ""}>hr/yr</option></select>
+          <input type="number" min="0" step="any" class="op" value="${item.op}"></td>`;
+    const mw = itemMW(item, r);
+    if (mw) totMW += mw * item.n;
+    invCols.forEach((pol, j) => {
+      const res = unitRate(item, r, pol);
+      const td = document.createElement("td"); td.className = "num";
+      if (!res) { td.innerHTML = `<span class="missing">–</span>`; tr.append(td); return; }
+      const [lbhr, cs, note] = res, lbhrHi = unitRate(item, r, pol, true)[0];
+      const pte = lbhrHi * item.n * 8760 / 2000;  // a stated maximum where the source gives one
+      const exp = item.mode === "cf" ? lbhr * item.n * 8760 * item.op / 100 / 2000 : lbhr * item.n * item.op / 2000;
+      const val = { pte, exp, lbhr, lbmwh: mw ? lbhr / mw : null, gkwh: mw ? lbhr / mw * LB_MWH_TO_G_KWH : null }[view];
+      if ((view === "pte" || view === "exp") && val != null) { totals[j] += val; nTot[j]++; }
+      if (mw) { lbhrMW[j][0] += lbhr * item.n; lbhrMW[j][1] += mw * item.n; }
+      const ovr = item.ov?.[pol]?.mode && item.ov[pol].mode !== "db";
+      const noteHtml = !note ? "" : ovr ? ` <span class="ovmark">${esc(note)}</span>` :
+        note === "†" ? ` <span class="fallback" title="40 CFR 98 default factor">†</span>` :
+        note === "AP-42" ? ` <span class="fallback" title="no ${pol} value for this variant in the database: ` +
+          `AP-42 factor for its technology">(AP-42)</span>` :
+        ` <span class="fallback" title="uses ${note}">(${note})</span>`;
+      td.innerHTML = val == null ? `<span class="missing">–</span>` :
+        `${fmt(val)}${noteHtml}${cs.length ? `<sup>${supRefs(cs, refNum)}</sup>` : ""}`;
+      tr.append(td);
+    });
+    const act = document.createElement("td");
+    act.innerHTML = `<button class="calcbtn" title="Show the calculation behind each value">calc</button> ` +
+      `<button class="ovbtn" title="Set or override factors">factors</button> <button class="del" title="Remove">×</button>`;
+    tr.append(act);
+    tr.querySelector(".model").onchange = e => {
+      item.equipment = e.target.value;
+      item.config = D.rows.find(x => x.equipment === item.equipment).id;
+      item.mw = ""; item.hr = ""; invSave();
+    };
+    tr.querySelector(".variant").onchange = e => { item.config = e.target.value; item.mw = ""; item.hr = ""; invSave(); };
+    for (const key of ["n", "mw", "hr", "op"])
+      tr.querySelector("." + key).onchange = e => {
+        item[key] = key === "mw" || key === "hr" ? e.target.value : +e.target.value; invSave(); };
+    tr.querySelector(".mode").onchange = e => {
+      item.mode = e.target.value; item.op = item.mode === "cf" ? 100 : 500; invSave(); };
+    act.querySelector(".del").onclick = () => { inv.splice(i, 1); ovOpen.clear(); calcOpen.clear(); invSave(); };
+    act.querySelector(".ovbtn").onclick = () => { ovOpen.has(i) ? ovOpen.delete(i) : ovOpen.add(i); invRender(); };
+    const toggleCalc = () => { calcOpen.has(i) ? calcOpen.delete(i) : calcOpen.add(i); invRender(); };
+    act.querySelector(".calcbtn").onclick = toggleCalc;
+    tr.querySelectorAll("td.num").forEach(td => { td.style.cursor = "pointer"; td.title = "Show calculation"; td.onclick = e => {
+      if (!e.target.closest("a")) toggleCalc(); }; });
+    tbody.append(tr);
+    if (calcOpen.has(i)) {
+      const ctr = document.createElement("tr"); ctr.className = "ovr";
+      ctr.innerHTML = `<td colspan="${7 + invCols.length}">${calcDetail(item, r)}</td>`;
+      tbody.append(ctr);
+    }
+    if (ovOpen.has(i)) {
+      const otr = document.createElement("tr"); otr.className = "ovr";
+      otr.innerHTML = `<td colspan="${7 + invCols.length}">${ovEditor(item, r)}</td>`;
+      otr.querySelectorAll(".ov").forEach(span => {
+        const pol = span.dataset.pol;
+        span.querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
+          item.ov ??= {};
+          const ov = item.ov[pol] ??= { mode: "db" };
+          const k = el.dataset.k;
+          ov[k] = el.type === "number" ? +el.value : el.value;
+          if (k === "mode" && ov.mode === "custom") {
+            ov.unit ??= pol === "NH3" ? "ppmvd@15%O2" : "lb/MWh"; ov.value ??= pol === "NH3" ? 5 : 0;
+          }
+          if (k === "mode" && ov.mode === "sulfur") ov.gr ??= 0.2;
+          invSave();
+        });
+      });
+      tbody.append(otr);
+    }
+  });
+  const showTot = view === "pte" || view === "exp", factor = view === "lbmwh" || view === "gkwh";
+  // factor views: the site's capacity-weighted factor (total lb/hr over total MW)
+  const totCell = (t, j) => showTot ? (nTot[j] ? fmt(t) : "–") : factor && lbhrMW[j][1]
+    ? fmt(lbhrMW[j][0] / lbhrMW[j][1] * (view === "gkwh" ? LB_MWH_TO_G_KWH : 1)) : "";
+  let foot = inv.length ? `<tr><td>Site total${factor ? " (weighted)" : ""}</td><td></td><td>${inv.reduce((a, x) => a + x.n, 0)}</td>
+    <td>${fmt(totMW)} MW</td><td></td><td></td>${totals.map((t, j) => `<td class="num">${totCell(t, j)}</td>`).join("")}<td></td></tr>` : "";
+  // the loaded example's own totals from its permit or application, for comparison
+  const ex = D.examples?.find(e => e.id === invExample);
+  if (ex?.reference && showTot && inv.length) {
+    const ref = ex.reference;
+    foot += `<tr class="refrow"><td colspan="6">${esc(ref.label)}${ref.cite.length ? `<sup>${supRefs(ref.cite, refNum)}</sup>` : ""}` +
+      (ref.notes ? `<br><span class="note">${esc(ref.notes)}</span>` : "") + `</td>` +
+      invCols.map(pol => `<td class="num">${ref.tpy?.[pol] != null ? fmt(ref.tpy[pol]) : ""}</td>`).join("") + `<td></td></tr>`;
+  }
+  tfoot.innerHTML = foot;
+  const note = document.getElementById("inv-example-note");
+  if (ex) {
+    note.innerHTML = `<b>Example: ${esc(ex.name)}</b>${ex.cite.length ? `<sup>${supRefs(ex.cite, refNum)}</sup>` : ""}. ${esc(ex.notes ?? "")}` +
+      (ex.reference && !showTot ? " Switch to a tons/yr view to compare with the document's totals." : "");
+    note.classList.remove("hidden");
+  } else note.classList.add("hidden");
+  writeRefs(refNum);
+}
+
+function invColPanel() {
+  const panel = document.getElementById("inv-colpanel");
+  panel.innerHTML = Object.keys(POLL_DEFS).map(p =>
+    `<label><input type="checkbox" value="${p}" ${invCols.includes(p) ? "checked" : ""}> ${p}</label>`).join("");
+  panel.querySelectorAll("input").forEach(c => c.onchange = () => {
+    invCols = Object.keys(POLL_DEFS).filter(p => panel.querySelector(`input[value="${p}"]`).checked);
+    store.set("gs_inv_cols", invCols); invRender();
+  });
+}
+
+function invSave() { store.set("gs_inv", inv); invRender(); }
+
+function invAdd() {
+  const first = D.rows.find(r => !r.generic && cfgMW(r));
+  inv.push({ equipment: first.equipment, config: first.id, n: 1, mw: "", hr: "", mode: "cf", op: 100 });
+  invSave();
+}
+
+function showTab(which) {
+  if (!["browse", "inv", "plots"].includes(which)) which = "browse";
+  const browse = which === "browse";
+  document.getElementById("browse").classList.toggle("hidden", !browse);
+  document.getElementById("browse-controls").classList.toggle("hidden", !browse);
+  for (const t of ["browse", "inv", "plots"]) {
+    document.getElementById(t === "browse" ? "browse" : t).classList.toggle("hidden", t !== which);
+    document.getElementById(`tab-${t}`).classList.toggle("active", t === which);
+  }
+  which === "browse" ? render() : which === "inv" ? invRender() : plotRender();
+  store.set("gs_tab", which);
+}
+
+function invInit() {
+  ROW_BY_ID = Object.fromEntries(D.rows.map(r => [r.id, r]));
+  const seen = new Map();
+  for (const r of D.rows) if (!seen.has(r.equipment))
+    seen.set(r.equipment, { id: r.equipment, label: `${r.manufacturer ?? ""} ${r.model ?? ""} (${r.eq_tech ?? r.tech})`.trim() });
+  EQUIP = [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+  inv = store.get("gs_inv", []).filter(x => ROW_BY_ID[x.config]);
+  document.getElementById("inv-add").onclick = invAdd;
+  document.getElementById("inv-clear").onclick = () => { inv = []; invExample = null; store.set("gs_inv_example", null); ovOpen.clear(); invSave(); };
+  invExample = store.get("gs_inv_example", null);
+  const exSel = document.getElementById("inv-example");
+  (D.examples || []).forEach(e => exSel.add(new Option(e.name, e.id)));
+  exSel.onchange = () => {
+    const ex = D.examples.find(e => e.id === exSel.value);
+    exSel.value = "";
+    if (!ex || (inv.length && !confirm(`Replace the current inventory with the ${ex.name} example?`))) return;
+    inv = ex.units.filter(u => ROW_BY_ID[u.config]).map(u => ({ equipment: ROW_BY_ID[u.config].equipment, config: u.config,
+      n: u.n, mw: "", hr: "", mode: "hrs", op: u.hours }));
+    invExample = ex.id; store.set("gs_inv_example", invExample);
+    document.getElementById("inv-view").value = "exp";
+    ovOpen.clear(); calcOpen.clear(); invSave();
+  };
+  invCols = store.get("gs_inv_cols", DEFAULT_POLL).filter(p => p in POLL_DEFS);
+  if (store.get("gs_cols_rev", 1) < COLS_REV) {
+    invCols = pm25Default(invCols); store.set("gs_inv_cols", invCols); store.set("gs_cols_rev", COLS_REV);
+  }
+  invColPanel();
+  document.getElementById("inv-cols").onclick = () => document.getElementById("inv-colpanel").classList.toggle("open");
+  document.getElementById("inv-view").onchange = invRender;
+  document.getElementById("tab-browse").onclick = () => showTab("browse");
+  document.getElementById("tab-inv").onclick = () => showTab("inv");
+  document.getElementById("tab-plots").onclick = () => showTab("plots");
+}
+
+// ------------------------------------------------------------ plots
+
+const TECH_ORDER = ["RICE", "SCGT", "CCGT", "diesel", "SOFC", "boiler"];
+const KIND_CLASS = {
+  stack_test: "Manufacturer / measured data", measured_cems: "Manufacturer / measured data",
+  certification_test: "Manufacturer / measured data", manufacturer_guarantee: "Manufacturer / measured data",
+  manufacturer_spec: "Manufacturer / measured data",
+  operating_data: "Manufacturer / measured data",
+  application_estimate: "Permit / application", permit_limit: "Permit / application",
+};
+const kindClass = k => KIND_CLASS[k] ?? "Literature / AP-42 / regulatory";
+const epOf = (r, p, u) => r.ep?.[`${p}|${u}`] ?? r.emissions_point ?? "unstated";
+function ctlClass(c) {
+  const s = String(c || "").split(",").map(x => x.trim());
+  if (s.includes("SCR")) return "SCR";
+  if (s.some(x => ["OxCat", "DOC", "TWC", "NSCR", "DPF"].includes(x))) return "catalyst / filter, no SCR";
+  if (s.some(x => x)) return "combustion controls only";
+  return "none listed";
+}
+// group-by options: label, key function
+const PLOT_GROUPS = {
+  tech: ["Technology", r => r.tech],
+  subtype: ["Technology / subtype", r => [r.tech, r.subtype].filter(Boolean).join(" ")],
+  controls: ["Controls", r => ctlClass(r.controls)],
+  ep: ["Emissions point", (r, p, u) => epOf(r, p, u)],
+  kind: ["Source type", r => kindClass(r.kind)],
+  fuel: ["Fuel", r => r.fuel || "unstated"],
+  tier: ["Tier", r => r.tier || "no Tier"],
+  manufacturer: ["Manufacturer", r => r.manufacturer || "unstated"],
+};
+// color-by options: label, categories in fixed slot order (color follows the category), key function
+const PLOT_COLORS = {
+  ep: ["Emissions point", ["stack", "engine_out", "unstated"], (r, p, u) => epOf(r, p, u)],
+  kind: ["Source type", ["Manufacturer / measured data", "Permit / application", "Literature / AP-42 / regulatory"], r => kindClass(r.kind)],
+  status: ["Stated or calculated", ["stated", "calculated"], (r, p, u) => getv(r, p, u)[1] === "s" ? "stated" : "calculated"],
+  none: ["None", ["all"], () => "all"],
+};
+const CAT_LABEL = { engine_out: "engine-out", stack: "stack (after controls)" };
+let PL = null, plotPts = [], plotSel = null, plotRankAll = false, plotRankDir = -1, plotGeom = null;
+
+function plotInit() {
+  PL = Object.assign({ param: "NOx", unit: "lb/MWh", group: "tech", color: "ep", scale: "log", tech: "",
+                       agg: "variant", stated: false, generic: false }, store.get("gs_plot", {}));
+  const ps = document.getElementById("pl-param");
+  const byCat = {};
+  for (const [p, m] of Object.entries(D.params))
+    if (D.rows.some(r => r.values[p] && Object.values(r.values[p]).some(v => typeof v[0] === "number")))
+      (byCat[m.category] ??= []).push([p, m.label]);
+  for (const [cat, items] of Object.entries(byCat)) {
+    const og = document.createElement("optgroup"); og.label = cat;
+    for (const [p, lab] of items) og.append(new Option(lab, p));
+    ps.append(og);
+  }
+  const fill = (id, opts) => { const s = document.getElementById(id); for (const [k, [lab]] of Object.entries(opts)) s.add(new Option(lab, k)); };
+  fill("pl-group", PLOT_GROUPS); fill("pl-color", PLOT_COLORS);
+  const ts = document.getElementById("pl-tech");
+  [...new Set(D.rows.map(r => r.tech))].sort().forEach(t => ts.add(new Option(t, t)));
+  if (!D.params[PL.param]) PL.param = "NOx";
+  plotUnits();
+  const ids = { param: "pl-param", unit: "pl-unit", group: "pl-group", color: "pl-color", scale: "pl-scale", tech: "pl-tech", agg: "pl-agg" };
+  for (const [k, id] of Object.entries(ids)) document.getElementById(id).value = PL[k];
+  document.getElementById("pl-stated").checked = PL.stated;
+  document.getElementById("pl-generic").checked = PL.generic;
+  for (const [k, id] of Object.entries(ids)) document.getElementById(id).onchange = e => {
+    PL[k] = e.target.value;
+    if (k === "param") {  // new quantity: its preferred unit, log scale for emission rates
+      PL.unit = ""; plotUnits(); document.getElementById("pl-unit").value = PL.unit;
+      const em = D.params[PL.param].category === "emissions";
+      PL.scale = em ? "log" : "lin";
+      document.getElementById("pl-scale").value = PL.scale;
+      if (!em && PL.color === "ep") PL.color = "kind";  // the emissions point only matters for emission rates
+      document.getElementById("pl-color").value = PL.color;
+    }
+    plotSel = null; plotChanged();
+  };
+  document.getElementById("pl-stated").onchange = e => { PL.stated = e.target.checked; plotChanged(); };
+  document.getElementById("pl-generic").onchange = e => { PL.generic = e.target.checked; plotChanged(); };
+  document.getElementById("pl-q").oninput = () => plotRender();
+  let t; window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { if (store.get("gs_tab") === "plots") plotRender(); }, 150); });
+  const svg = document.getElementById("plot-svg");
+  svg.addEventListener("pointermove", plotHover);
+  svg.addEventListener("pointerleave", () => { document.getElementById("plot-tip").style.display = "none"; plotHi(null); });
+  svg.addEventListener("click", e => { const p = plotNearest(e); if (p) plotSelect(p.key); });
+}
+
+function plotUnits() {
+  const us = unitsFor(PL.param);
+  const s = document.getElementById("pl-unit");
+  s.innerHTML = ""; us.forEach(u => s.add(new Option(u, u)));
+  if (!us.includes(PL.unit)) PL.unit = us[0];
+}
+
+function plotChanged() { store.set("gs_plot", PL); plotRender(); }
+
+// the points for the current settings: one per variant, or the median of each model's variants
+function plotPoints() {
+  const { param: p, unit: u } = PL;
+  const gk = PLOT_GROUPS[PL.group][1], ck = PLOT_COLORS[PL.color][2];
+  const pts = [];
+  for (const r of D.rows) {
+    const v = getv(r, p, u);
+    if (!v || typeof v[0] !== "number" || !isFinite(v[0])) continue;
+    if ((!PL.generic && r.generic) || (PL.tech && r.tech !== PL.tech) || (PL.stated && v[1] !== "s")) continue;
+    if (r.approx) continue;  // permit rows matched to the model only approximately
+    pts.push({ key: r.id, rows: [r], y: v[0], stated: v[1] === "s", tag: v[5], group: gk(r, p, u) || "unstated", cat: ck(r, p, u) });
+  }
+  if (PL.agg !== "model") return pts;
+  const by = new Map();
+  for (const x of pts) {
+    const k = `${x.rows[0].equipment}||${x.group}||${x.cat}`;
+    (by.get(k) ?? by.set(k, []).get(k)).push(x);
+  }
+  return [...by.entries()].map(([k, xs]) => {
+    xs.sort((a, b) => a.y - b.y);
+    const n = xs.length, y = n % 2 ? xs[(n - 1) / 2].y : (xs[n / 2 - 1].y + xs[n / 2].y) / 2;
+    return { key: k, rows: xs.map(x => x.rows[0]), vals: xs.map(x => x.y), y, stated: xs.some(x => x.stated),
+             group: xs[0].group, cat: xs[0].cat };
+  });
+}
+
+function quantile(s, q) {  // s sorted ascending
+  const i = (s.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i);
+  return s[lo] + (s[hi] - s[lo]) * (i - lo);
+}
+
+function niceTicks(lo, hi, n) {
+  const span = hi - lo || Math.abs(hi) || 1, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= step0);
+  const out = [];
+  for (let x = Math.ceil(lo / step) * step; x <= hi + step * 1e-9; x += step) out.push(+x.toPrecision(12));
+  return out;
+}
+
+function plotRender() {
+  if (!PL) return;
+  const wrap = document.getElementById("plot-wrap"), svg = document.getElementById("plot-svg");
+  const log = PL.scale === "log";
+  document.getElementById("plot-tip").style.display = "none";
+  let pts = plotPoints();
+  const dropped = log ? pts.filter(x => x.y <= 0).length : 0;
+  if (log) pts = pts.filter(x => x.y > 0);
+  const q = document.getElementById("pl-q").value.trim().toLowerCase();
+  const hit = x => !q || x.rows.some(r => `${r.manufacturer} ${r.model} ${r.name}`.toLowerCase().includes(q));
+  plotPts = pts;
+  const nModels = new Set(pts.map(x => x.rows[0].equipment)).size;
+  document.getElementById("plot-status").textContent = pts.length
+    ? `${pts.length.toLocaleString()} points, ${nModels} models` + (dropped ? ` · ${dropped} zero values not shown on the log scale` : "")
+    : "";
+
+  // groups in a stable order: technologies in their usual order, everything else by median (highest first)
+  const groups = new Map();
+  for (const x of pts) (groups.get(x.group) ?? groups.set(x.group, []).get(x.group)).push(x);
+  const T = v => log ? Math.log10(v) : v;
+  let gl = [...groups.entries()].map(([name, xs]) => {
+    const s = xs.map(x => T(x.y)).sort((a, b) => a - b);
+    const q1 = quantile(s, 0.25), q3 = quantile(s, 0.75), iqr = q3 - q1;
+    return { name, xs, n: s.length, q1, q3, med: quantile(s, 0.5), min: s[0], max: s[s.length - 1],
+             wlo: s.find(v => v >= q1 - 1.5 * iqr), whi: [...s].reverse().find(v => v <= q3 + 1.5 * iqr) };
+  });
+  const ti = g => { const i = TECH_ORDER.indexOf(g.name.split(" ")[0]); return i < 0 ? 99 : i; };
+  gl.sort((a, b) => (PL.group === "tech" || PL.group === "subtype") ? ti(a) - ti(b) || a.name.localeCompare(b.name)
+                                                                      : b.med - a.med || a.name.localeCompare(b.name));
+  plotLegend(pts);
+  if (!pts.length) {
+    svg.setAttribute("width", wrap.clientWidth); svg.setAttribute("height", 120);
+    svg.innerHTML = `<text x="16" y="60">No values for this selection.</text>`;
+    plotGeom = null; plotRank([], hit); plotSelRender(); return;
+  }
+
+  // layout
+  const W0 = Math.max(320, wrap.clientWidth - 2), H = 460, R = 4;
+  const maxLab = Math.max(...gl.map(g => `${g.name} (${g.n})`.length));
+  const band0 = (W0 - 70) / gl.length, rotate = band0 < Math.min(150, maxLab * 7 + 10);
+  const band = Math.max(rotate ? 34 : 60, band0);
+  const W = Math.max(W0, 70 + band * gl.length + 10);
+  const m = { l: 62, r: 10, t: 14, b: rotate ? Math.min(150, 18 + maxLab * 5.2) : 40 };
+  const ph = H - m.t - m.b;
+  let lo = Math.min(...gl.map(g => g.min)), hi = Math.max(...gl.map(g => g.max));
+  let ticks;
+  if (log) {
+    lo = Math.floor(lo * 4) / 4; hi = Math.ceil(hi * 4) / 4; if (hi - lo < 1) { lo -= 0.5; hi += 0.5; }
+    const d0 = Math.floor(lo), d1 = Math.ceil(hi), sub = d1 - d0 <= 3 ? [1, 2, 5] : [1];
+    ticks = [];
+    for (let d = d0; d <= d1; d++) for (const s of sub) { const t = Math.log10(s * 10 ** d); if (t >= lo - 1e-9 && t <= hi + 1e-9) ticks.push(t); }
+  } else {
+    const pad = (hi - lo) * 0.05 || Math.abs(hi) * 0.1 || 1;
+    lo = Math.min(0, lo) < 0 ? lo - pad : (lo - pad < 0 ? 0 : lo - pad); hi += pad;
+    ticks = niceTicks(lo, hi, 6).filter(t => t >= lo && t <= hi);
+  }
+  const Y = v => m.t + ph * (1 - (v - lo) / (hi - lo));
+  const tickLab = t => { const v = log ? 10 ** t : t; return Math.abs(v) >= 1000 ? fmt(Math.round(v)).replace(/,000$/, "K") : fmt(+v.toPrecision(3)); };
+
+  const out = [];
+  for (const t of ticks) out.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--grid)" stroke-width="1"/>`,
+    `<text class="tick" x="${m.l - 6}" y="${Y(t) + 4}" text-anchor="end">${tickLab(t)}</text>`);
+  out.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${m.t + ph}" y2="${m.t + ph}" stroke="var(--axis)"/>`);
+  const ytitle = `${D.params[PL.param].label} (${PL.unit})${log ? ", log scale" : ""}`;
+  out.push(`<text class="title" transform="translate(14 ${m.t + ph / 2}) rotate(-90)" text-anchor="middle">${esc(ytitle)}</text>`);
+  svg.setAttribute("aria-label", `${ytitle} by ${PLOT_GROUPS[PL.group][0].toLowerCase()}: box plots with one point per ${PL.agg === "model" ? "model" : "variant"}`);
+
+  const cats = PLOT_COLORS[PL.color][1];
+  const slot = c => { const i = cats.indexOf(c); return `var(--series-${(i < 0 ? 0 : i) + 1})`; };
+  const geomPts = [];
+  gl.forEach((g, gi) => {
+    const cx = m.l + band * (gi + 0.5), bw = Math.min(band * 0.7, 90), half = band / 2 - R - 2;
+    // box behind the points
+    out.push(`<rect x="${cx - bw / 2}" y="${Y(g.q3)}" width="${bw}" height="${Math.max(1, Y(g.q1) - Y(g.q3))}" rx="4" fill="var(--box)"/>`);
+    // beeswarm: place each point at the free offset nearest the centre line
+    const xs = g.xs.map(x => ({ x, py: Y(T(x.y)) })).sort((a, b) => a.py - b.py);
+    const placed = [];
+    for (const p of xs) {
+      let best = 0;
+      for (let k = 0; k < 400; k++) {
+        const off = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (R * 0.9);
+        if (Math.abs(off) > half) { best = ((placed.length * 7919) % Math.max(1, Math.round(2 * half))) - half; break; }
+        let ok = true;
+        for (let j = placed.length - 1; j >= 0 && p.py - placed[j].py < 2 * R + 1; j--) {
+          const dx = off - placed[j].off, dy = p.py - placed[j].py;
+          if (dx * dx + dy * dy < (2 * R + 1) ** 2) { ok = false; break; }
+        }
+        if (ok) { best = off; break; }
+      }
+      placed.push({ off: best, py: p.py });
+      geomPts.push({ ...p.x, sx: cx + best, sy: p.py });
+    }
+    const lab = `${g.name} (${g.n})`;
+    out.push(rotate
+      ? `<text transform="translate(${cx + 4} ${m.t + ph + 12}) rotate(-40)" text-anchor="end">${esc(lab)}</text>`
+      : `<text x="${cx}" y="${m.t + ph + 18}" text-anchor="middle">${esc(g.name)}</text>` +
+        `<text class="tick" x="${cx}" y="${m.t + ph + 33}" text-anchor="middle">n = ${g.n}</text>`);
+    g.cx = cx; g.bw = bw;
+  });
+  const dots = geomPts.map((p, i) => {
+    const c = slot(p.cat), dim = !hit(p);
+    return `<circle data-i="${i}" cx="${p.sx.toFixed(1)}" cy="${p.sy.toFixed(1)}" r="${R}"` +
+      (p.stated ? ` fill="${c}" stroke="var(--bg)" stroke-width="2"` : ` fill="var(--bg)" stroke="${c}" stroke-width="2"`) +
+      (dim ? ` opacity="0.15"` : "") + `/>`;
+  });
+  out.push(`<g id="plot-dots">${dots.join("")}</g>`);
+  // box outline, whiskers and median over the points
+  for (const g of gl) {
+    const { cx, bw } = g, x0 = cx - bw / 2;
+    out.push(`<g pointer-events="none"><rect x="${x0}" y="${Y(g.q3)}" width="${bw}" height="${Math.max(1, Y(g.q1) - Y(g.q3))}" rx="4"` +
+      ` fill="none" stroke="var(--ink3)"/>` +
+      `<line x1="${cx}" x2="${cx}" y1="${Y(g.whi)}" y2="${Y(g.q3)}" stroke="var(--ink3)"/>` +
+      `<line x1="${cx}" x2="${cx}" y1="${Y(g.q1)}" y2="${Y(g.wlo)}" stroke="var(--ink3)"/>` +
+      `<line x1="${cx - bw / 4}" x2="${cx + bw / 4}" y1="${Y(g.whi)}" y2="${Y(g.whi)}" stroke="var(--ink3)"/>` +
+      `<line x1="${cx - bw / 4}" x2="${cx + bw / 4}" y1="${Y(g.wlo)}" y2="${Y(g.wlo)}" stroke="var(--ink3)"/>` +
+      `<line x1="${x0}" x2="${x0 + bw}" y1="${Y(g.med)}" y2="${Y(g.med)}" stroke="var(--bg)" stroke-width="5"/>` +
+      `<line x1="${x0}" x2="${x0 + bw}" y1="${Y(g.med)}" y2="${Y(g.med)}" stroke="var(--fg)" stroke-width="2"/></g>`);
+  }
+  out.push(`<g id="plot-hl"></g>`);
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  svg.innerHTML = out.join("");
+  plotGeom = { pts: geomPts, groups: gl, Y, T, log, slot, m, ph };
+  plotHi(null);
+  plotRank(pts, hit);
+  plotSelRender();
+}
+
+function plotLegend(pts) {
+  const [lab, cats] = PLOT_COLORS[PL.color];
+  const present = new Set(pts.map(x => x.cat));
+  const el = document.getElementById("plot-legend");
+  el.innerHTML = "";
+  const key = (fill, stroke, text) => {
+    const s = document.createElement("span"); s.className = "key";
+    s.innerHTML = `<svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="${fill}" stroke="${stroke}" stroke-width="2"/></svg>`;
+    s.append(document.createTextNode(text)); el.append(s);
+  };
+  if (PL.color !== "none") {
+    const h = document.createElement("span"); h.textContent = lab + ":"; el.append(h);
+    cats.forEach((c, i) => { if (present.has(c)) key(`var(--series-${i + 1})`, "var(--bg)", CAT_LABEL[c] ?? c); });
+  }
+  key("var(--ink3)", "var(--bg)", "stated in the source");
+  key("var(--bg)", "var(--ink3)", "calculated");
+}
+
+function plotNearest(e) {
+  if (!plotGeom) return null;
+  const b = document.getElementById("plot-svg").getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+  let best = null, bd = 24 * 24;  // hit radius 24px around each 8px dot
+  for (const p of plotGeom.pts) { const d = (p.sx - x) ** 2 + (p.sy - y) ** 2; if (d < bd) { bd = d; best = p; } }
+  return best;
+}
+
+function plotHi(p) {
+  const hl = document.getElementById("plot-hl");
+  if (!hl || !plotGeom) return;
+  const ring = (q, r, w) => `<circle cx="${q.sx}" cy="${q.sy}" r="${r}" fill="none" stroke="var(--fg)" stroke-width="${w}"/>`;
+  const sel = plotSel && plotGeom.pts.find(q => q.key === plotSel);
+  hl.innerHTML = (sel ? ring(sel, 7.5, 2) : "") + (p && p !== sel ? ring(p, 7, 1.5) : "");
+}
+
+function plotHover(e) {
+  const tip = document.getElementById("plot-tip"), wrap = document.getElementById("plot-wrap");
+  const p = plotNearest(e);
+  plotHi(p);
+  tip.innerHTML = "";
+  const line = (cls, text) => { const d = document.createElement("div"); if (cls) d.className = cls; d.textContent = text; tip.append(d); };
+  const wb = wrap.getBoundingClientRect();
+  if (p) {
+    const r = p.rows[0];
+    line("tv", `${fmt(p.y)} ${PL.unit}` + (p.tag ? ` (${TAG_TITLE[p.tag] ?? p.tag})` : ""));
+    line("", `${r.manufacturer ?? ""} ${r.model ?? ""}`.trim());
+    if (p.rows.length > 1) line("ts", `median of ${p.rows.length} variants (${fmt(Math.min(...p.vals))}–${fmt(Math.max(...p.vals))})`);
+    else line("ts", r.name ?? r.id);
+    line("ts", [p.group, PL.color !== "none" && PL.color !== PL.group ? (CAT_LABEL[p.cat] ?? p.cat) : null,
+                p.stated ? "stated" : "calculated"].filter(Boolean).join(" · "));
+    line("ts", "Click to select");
+  } else {
+    // between points: the stats of the box under the pointer
+    const x = e.clientX - document.getElementById("plot-svg").getBoundingClientRect().left;
+    const g = plotGeom?.groups.find(g => Math.abs(x - g.cx) <= g.bw / 2);
+    const y = e.clientY - document.getElementById("plot-svg").getBoundingClientRect().top;
+    if (!g || y < plotGeom.Y(g.max) - 8 || y > plotGeom.Y(g.min) + 8) { tip.style.display = "none"; return; }
+    const V = t => fmt(plotGeom.log ? 10 ** t : t);
+    line("tv", `median ${V(g.med)} ${PL.unit}`);
+    line("", `${g.name}: ${g.n} points`);
+    line("ts", `quartiles ${V(g.q1)}–${V(g.q3)} · range ${V(g.min)}–${V(g.max)}`);
+  }
+  tip.style.display = "block";
+  const tx = e.clientX - wb.left + wrap.scrollLeft + 14, ty = e.clientY - wb.top + 12;
+  tip.style.left = Math.min(tx, wrap.scrollLeft + wb.width - tip.offsetWidth - 6) + "px";
+  tip.style.top = Math.min(ty, wb.height - tip.offsetHeight - 6) + "px";
+}
+
+function plotSelect(key) {
+  plotSel = plotSel === key ? null : key;
+  plotHi(null);
+  plotRank(plotPts, null);
+  plotSelRender();
+}
+
+// ranked table: the accessible view of every point, highest (or lowest) first
+function plotRank(pts, hit) {
+  const el = document.getElementById("plot-rank");
+  if (hit) plotRank.hit = hit;
+  hit = plotRank.hit || (() => true);
+  const rows = pts.filter(hit).sort((a, b) => (a.y - b.y) * plotRankDir);
+  if (!rows.length) { el.innerHTML = ""; return; }
+  const n = plotRankAll ? rows.length : Math.min(15, rows.length);
+  const cats = PLOT_COLORS[PL.color][1];
+  const head = `<h3>${plotRankDir < 0 ? "Highest" : "Lowest"} first · ${esc(D.params[PL.param].label)} (${esc(PL.unit)}) ` +
+    `<button id="pr-dir">${plotRankDir < 0 ? "show lowest first" : "show highest first"}</button> ` +
+    (rows.length > 15 ? `<button id="pr-all">${plotRankAll ? "show top 15" : `show all ${rows.length}`}</button>` : "") + `</h3>`;
+  const body = rows.slice(0, n).map((p, i) => {
+    const r = p.rows[0], ci = cats.indexOf(p.cat);
+    const dot = `<span class="dot${p.stated ? "" : " hollow"}" style="${p.stated ? "background" : "border-color"}:var(--series-${(ci < 0 ? 0 : ci) + 1})"></span>`;
+    return `<tr data-k="${esc(p.key)}" class="${p.key === plotSel ? "sel" : ""}"><td class="num">${i + 1}</td>` +
+      `<td class="num"><span class="${p.stated ? "" : "derived"}">${fmt(p.y)}</span>${tagHtml(p.tag)}</td>` +
+      `<td>${esc(r.manufacturer)} ${esc(r.model)}</td>` +
+      `<td class="name">${p.rows.length > 1 ? `median of ${p.rows.length} variants` : esc(r.name ?? r.id)}</td>` +
+      `<td>${esc(p.group)}</td><td>${dot}${esc(CAT_LABEL[p.cat] ?? p.cat)}</td></tr>`;
+  }).join("");
+  el.innerHTML = head + `<div class="wrap" style="max-height:420px"><table><thead><tr><th>#</th><th>${esc(PL.unit)}</th><th>Model</th>` +
+    `<th>Variant</th><th>${esc(PLOT_GROUPS[PL.group][0])}</th><th>${esc(PLOT_COLORS[PL.color][0])}</th></tr></thead>` +
+    `<tbody>${body}</tbody></table></div>`;
+  document.getElementById("pr-dir").onclick = () => { plotRankDir = -plotRankDir; plotRank(plotPts, null); };
+  const all = document.getElementById("pr-all");
+  if (all) all.onclick = () => { plotRankAll = !plotRankAll; plotRank(plotPts, null); };
+  el.querySelector("tbody").onclick = e => { const tr = e.target.closest("tr"); if (tr) plotSelect(tr.dataset.k); };
+}
+
+function plotSelRender() {
+  const el = document.getElementById("plot-sel");
+  const p = plotSel && plotPts.find(x => x.key === plotSel);
+  if (!p) { el.classList.add("hidden"); el.innerHTML = ""; writeRefs(new Map()); return; }
+  const refNum = new Map();
+  // for a model's median point, show the variant closest to the median, with the others listed
+  const lead = p.rows.length > 1 ? p.rows[p.vals.reduce((bi, v, i) => Math.abs(v - p.y) < Math.abs(p.vals[bi] - p.y) ? i : bi, 0)] : p.rows[0];
+  const others = p.rows.length > 1
+    ? `<p class="note">Median of ${p.rows.length} variants: ` + p.rows.map((r, i) => `${esc(r.name ?? r.id)} (${fmt(p.vals[i])})`).join("; ") +
+      `. Details below are for the variant closest to the median.</p>` : "";
+  el.innerHTML = `<h3>Selected · ${fmt(p.y)} ${esc(PL.unit)} <button id="ps-browse">Open in Browse</button> <button id="ps-clear">Clear</button></h3>` +
+    others + card(lead, refNum);
+  el.classList.remove("hidden");
+  writeRefs(refNum);
+  document.getElementById("ps-clear").onclick = () => plotSelect(plotSel);
+  document.getElementById("ps-browse").onclick = () => {
+    document.getElementById("q").value = `${lead.model ?? ""}`;
+    document.getElementById("tech").value = "";
+    document.getElementById("generic").checked = !!lead.generic;
+    expanded.add(lead.id); openGroups.add(lead.equipment); page = 0;
+    showTab("browse");
+  };
+}
+
+fetch(DATA_URL).then(r => r.json()).then(d => {
+  D = d;
+  cols = store.get("gs_cols", DEFAULT_COLS);
+  if (store.get("gs_cols_rev", 1) < COLS_REV) { cols = pm25Default(cols); store.set("gs_cols", cols); }  // rev set in invInit
+  for (const [p, u] of Object.entries(cols)) {
+    const us = unitsFor(p), old = u.replace(/ \((gross|net)\)$/, "").replace("*)", ")");
+    if (!us.length) delete cols[p]; else if (!us.includes(u)) cols[p] = us.includes(old) ? old : us[0];
+  }
+  const techs = [...new Set(D.rows.map(r => r.tech))].sort();
+  const sel = document.getElementById("tech");
+  techs.forEach(t => sel.add(new Option(t, t)));
+  buildColPanel();
+  ["q", "tech", "generic", "grouped"].forEach(id => document.getElementById(id).addEventListener("input", () => { page = 0; render(); }));
+  const gr = document.getElementById("grouped");
+  gr.checked = store.get("gs_grouped", true);
+  gr.addEventListener("change", () => store.set("gs_grouped", gr.checked));
+  pageSize = +store.get("gs_pagesize", 50);
+  const ps = document.getElementById("pagesize");
+  ps.value = String(pageSize);
+  ps.onchange = () => { pageSize = +ps.value; page = 0; store.set("gs_pagesize", pageSize); render(); };
+  document.getElementById("pg-prev").onclick = () => { page = Math.max(0, page - 1); render(); };
+  document.getElementById("pg-next").onclick = () => { page += 1; render(); };
+  document.getElementById("cols").onclick = () => document.getElementById("colpanel").classList.toggle("open");
+  invInit();
+  plotInit();
+  showTab(store.get("gs_tab", "browse"));
+}).catch(e => {
+  document.getElementById("count").textContent =
+    "Could not load data: serve the Gen_specs_db folder over HTTP (see ui/README.md).";
+  console.error(e);
+});
+</script>
+</body>
+</html>
